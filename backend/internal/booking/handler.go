@@ -112,6 +112,7 @@ func (h *Handler) ConfirmHandler(c *gin.Context) {
 		"user_id":     userID,
 		"timestamp":   time.Now(),
 	})
+
 	// ใช้ background context สำหรับ async publishing เพื่อหลีกเลี่ยง request context ที่อาจถูกยกเลิก
 	if err := h.service.mqCh.PublishWithContext(context.Background(),
 		"", "booking_events", false, false,

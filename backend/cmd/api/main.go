@@ -68,14 +68,20 @@ func main() {
 	}
 	defer mqConn.Close()
 
-	mqCh, err := mqConn.Channel()
+	mqPublishCh, err := mqConn.Channel()
 	if err != nil {
-		log.Fatalf("Failed to open RabbitMQ channel: %v", err)
+		log.Fatalf("Failed to open RabbitMQ publish channel: %v", err)
 	}
-	defer mqCh.Close()
+	defer mqPublishCh.Close()
+
+	mqConsumeCh, err := mqConn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open RabbitMQ consume channel: %v", err)
+	}
+	defer mqConsumeCh.Close()
 
 	// สร้างคิวหลักของระบบจองเพื่อใช้เก็บประวัติและสื่อสารข้อมูลเรียลไทม์
-	_, err = mqCh.QueueDeclare(
+	_, err = mqPublishCh.QueueDeclare(
 		"booking_events", // ชื่อคิว
 		true,             // durable
 		false,            // delete when unused
@@ -89,7 +95,7 @@ func main() {
 	log.Println("RabbitMQ connected and queue declared successfully!")
 
 	// 5. เปิดเครื่องระบบจัดการเรียลไทม์ WebSocket Hub ส่วนกลาง
-	wsHub := seat.NewHub(mqCh)
+	wsHub := seat.NewHub()
 	go wsHub.Run(context.Background()) // แยกการกระจายข้อความไปรันเบื้องหลัง (Goroutine)
 
 	// 6. ทำ Dependency Injection สำหรับกลุ่มธุรกิจจัดการข้อมูลที่นั่ง (Seat Domain)
@@ -99,17 +105,17 @@ func main() {
 
 	// 7. ทำ Dependency Injection สำหรับกลุ่มธุรกิจจัดการระบบจองและล็อกที่นั่ง (Booking Domain)
 	bookingRepo := booking.NewRepository(mongoDB, rdb)
-	bookingService := booking.NewService(bookingRepo, seatRepo, mqCh) // Inject seatRepo เพื่อใช้ปรับสถานะเก้าอี้
+	bookingService := booking.NewService(bookingRepo, seatRepo, mqPublishCh) // Inject seatRepo เพื่อใช้ปรับสถานะเก้าอี้
 	bookingHandler := booking.NewHandler(bookingService)
 
 	// 8. เริ่มต้นสวิตช์การทำงานของกลุ่มสคริปต์เบื้องหลัง (Background Workers)
 
 	// ตัวที่ 1: ดักฟังคีย์ล็อกใน Redis หมดอายุ 5 นาที เพื่อเคลียร์สถานะกลับเป็น AVAILABLE ใน MongoDB
-	timeoutWorker := worker.NewTimeoutListener(rdb, seatRepo, mqCh)
+	timeoutWorker := worker.NewTimeoutListener(rdb, seatRepo, mqPublishCh)
 	timeoutWorker.Start(context.Background())
 
 	// ตัวที่ 2: ดึงประวัติกิจกรรมจากคิว RabbitMQ มาบันทึกลงฐานข้อมูลเป็น Audit Logs ของแอดมิน
-	rabbitConsumer := worker.NewRabbitConsumer(mqCh, mongoDB)
+	rabbitConsumer := worker.NewRabbitConsumer(mqConsumeCh, mongoDB, wsHub)
 	rabbitConsumer.Start(context.Background())
 
 	log.Println("All Background workers initialized successfully!")

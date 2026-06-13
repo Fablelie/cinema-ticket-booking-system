@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/fablelie/cinema-ticket-booking-system/internal/seat"
 	"github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -22,12 +23,14 @@ type AuditLog struct {
 type RabbitConsumer struct {
 	mqCh *amqp091.Channel
 	db   *mongo.Database
+	hub  *seat.Hub
 }
 
-func NewRabbitConsumer(ch *amqp091.Channel, db *mongo.Database) *RabbitConsumer {
+func NewRabbitConsumer(ch *amqp091.Channel, db *mongo.Database, hub *seat.Hub) *RabbitConsumer {
 	return &RabbitConsumer{
 		mqCh: ch,
 		db:   db,
+		hub:  hub,
 	}
 }
 
@@ -58,6 +61,12 @@ func (c *RabbitConsumer) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case d := <-msgs:
+				log.Printf("[RABBITMQ RAW RECEIVED] %s", string(d.Body))
+
+				if c.hub != nil {
+					c.hub.BroadcastRawMessage(d.Body)
+				}
+
 				// แปลงข้อความ JSON ที่ได้จากคิวให้กลับมาเป็น Struct
 				var rawData map[string]interface{}
 				if err := json.Unmarshal(d.Body, &rawData); err != nil {

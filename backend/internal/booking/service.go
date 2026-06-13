@@ -51,13 +51,17 @@ func (s *Service) ReserveSeats(ctx context.Context, userID string, req ReserveSe
 	}
 
 	// 3. 📣 ส่ง Event เข้า RabbitMQ เพื่อให้ Worker เอาไป Broadcast ออก WebSocket บอกหน้าบ้านคนอื่น
-	eventPayload, _ := json.Marshal(map[string]interface{}{
+	eventPayload, err := json.Marshal(map[string]interface{}{
 		"event":        "SEATS_LOCKED",
 		"showtime_id":  req.ShowtimeID,
 		"seats":        req.Seats,
 		"user_id":      userID,
 		"locked_until": lockedUntil,
 	})
+
+	if err != nil {
+		log.Printf("[BOOKING SERVICE] json marshal err ")
+	}
 
 	log.Printf("[BOOKING SERVICE] Publishing SEATS_LOCKED event for user %s, seats: %v", userID, req.Seats)
 

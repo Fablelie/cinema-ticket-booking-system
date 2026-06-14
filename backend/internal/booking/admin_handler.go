@@ -74,8 +74,22 @@ func (h *Handler) ResetSeatsHandler(c *gin.Context) {
 		return
 	}
 
-	// 1. ล้างคีย์ล็อกเก้าอี้ทั้งหมด (A1-B5) ใน Redis ออกให้หมด
-	allSeats := []string{"A1", "A2", "A3", "A4", "A5", "B1", "B2", "B3", "B4", "B5"}
+	showtime, err := h.service.seatRepo.GetShowtimeByID(ctx, req.ShowtimeID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "showtime not found to reset"})
+	}
+
+	var allSeats []string
+	for _, seat := range showtime.Seats {
+		allSeats = append(allSeats, seat.SeatNo)
+	}
+
+	if len(allSeats) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "no seats found to reset"})
+		return
+	}
+
+	// 1. ล้างคีย์ล็อกเก้าอี้ทั้งหมด ใน Redis ออกให้หมด
 	_ = h.service.bookingRepo.ReleaseMultipleLocks(ctx, req.ShowtimeID, allSeats, "")
 
 	// 2. ปรับสถานะเก้าอี้ทุกตัวใน MongoDB กลับเป็น AVAILABLE (สีแดง)

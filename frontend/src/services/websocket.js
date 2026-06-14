@@ -7,7 +7,8 @@ export const useWebSocket = () => {
 
   // ฟังก์ชันเปิดการเชื่อมต่อ
   const connect = () => {
-    ws = new WebSocket('ws://localhost:8080/api/v1/seats/ws')
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL
+    ws = new WebSocket(`${wsBaseUrl}`)
 
     ws.onopen = () => {
       console.log('[WEBSOCKET] Connected to backend real-time server.')

@@ -83,7 +83,7 @@ const formatDateTime = (dateStr) => {
 const getEventBadgeClass = (event) => {
   switch (event) {
     case 'BOOKING_SUCCESS': return 'badge-success'       // สีเขียว (จองถาวร)
-    case 'SEATS_LOCKED': return 'badge-warning'          // สีส้ม (ติดล็อก 5 นาที)
+    case 'SEATS_LOCKED': return 'badge-warning'          // สีส้ม (ติดล็อก)
     case 'SEATS_RELEASED': return 'badge-danger'         // สีแดง (หลุดล็อก/ยกเลิก)
     case 'SYSTEM_RESET_BY_ADMIN': return 'badge-system'  // สีม่วง (แอดมินล้างกระดาน)
     default: return 'badge-info'

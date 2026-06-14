@@ -108,7 +108,7 @@ onMounted(() => {
           if (ev.event === 'SEATS_LOCKED') {
             return { ...s, status: 'LOCKED' }
           }
-          // หากหมดเวลาล็อก 5 นาที หรือคนอื่นกดยกเลิก ปรับกลับเป็น AVAILABLE (แดง)
+          // หากหมดเวลาล็อก หรือคนอื่นกดยกเลิก ปรับกลับเป็น AVAILABLE (แดง)
           if (ev.event === 'SEATS_RELEASED') {
             // เช็กเผื่อป้องกันไม่ให้ไปล้างปุ่มสีฟ้าของตัวเราเอง
             if (localSelected.value.includes(s.seat_no)) {
@@ -192,7 +192,7 @@ const handleLogout = () => {
         <div class="color-badges">
           <span class="badge badge-av">ว่าง (แดง)</span>
           <span class="badge badge-sel">กำลังเลือก (ฟ้า)</span>
-          <span class="badge badge-lock">ติดล็อก 5 นาที (ส้ม)</span>
+          <span class="badge badge-lock">ติดล็อก (ส้ม)</span>
           <span class="badge badge-book">จองแล้ว (เทา)</span>
         </div>
 

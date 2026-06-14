@@ -29,10 +29,10 @@ const startCountdown = () => {
     const difference = targetTime - now
 
     if (difference <= 0) {
-      // 🚨 ตั๋วหมดเวลา 5 นาทีแล้ว!
+      // Timeout!
       clearInterval(timerInterval)
       timeLeftStr.value = '00:00'
-      alert('หมดเวลาทำรายการจองตั๋ว 5 นาที ระบบจะนำคุณกลับไปเลือกที่นั่งใหม่อีกครั้ง')
+      alert('หมดเวลาทำรายการจองตั๋ว ระบบจะนำคุณกลับไปเลือกที่นั่งใหม่อีกครั้ง')
       
       // ล้างข้อมูลใน Store แล้วเตะกลับหน้าผังที่นั่ง (หลังบ้านจะคอยเคลียร์สเตตัสใน Mongo อยู่แล้ว)
       authStore.selectedSeats = []

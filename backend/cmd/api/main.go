@@ -105,12 +105,12 @@ func main() {
 
 	// 7. ทำ Dependency Injection สำหรับกลุ่มธุรกิจจัดการระบบจองและล็อกที่นั่ง (Booking Domain)
 	bookingRepo := booking.NewRepository(mongoDB, rdb)
-	bookingService := booking.NewService(bookingRepo, seatRepo, mqPublishCh) // Inject seatRepo เพื่อใช้ปรับสถานะเก้าอี้
+	bookingService := booking.NewService(bookingRepo, seatRepo, mqPublishCh, cfg) // Inject config for seat lock TTL
 	bookingHandler := booking.NewHandler(bookingService)
 
 	// 8. เริ่มต้นสวิตช์การทำงานของกลุ่มสคริปต์เบื้องหลัง (Background Workers)
 
-	// ตัวที่ 1: ดักฟังคีย์ล็อกใน Redis หมดอายุ 5 นาที เพื่อเคลียร์สถานะกลับเป็น AVAILABLE ใน MongoDB
+	// ตัวที่ 1: ดักฟังคีย์ล็อกใน Redis หมดอายุ เพื่อเคลียร์สถานะกลับเป็น AVAILABLE ใน MongoDB
 	timeoutWorker := worker.NewTimeoutListener(rdb, seatRepo, mqPublishCh)
 	timeoutWorker.Start(context.Background())
 

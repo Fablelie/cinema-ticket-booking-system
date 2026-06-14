@@ -48,19 +48,18 @@ func (r *Repository) AcquireMultipleLocks(ctx context.Context, showtimeID string
 
 	// 3. 💥 หัวใจของ Senior: ถ้ามีตัวใดตัวหนึ่งล้มเหลว ให้Rollback สั่งลบคีย์ที่แอบสร้างไว้ทันที!
 	if !allSuccess {
-		delPipe := r.redis.Pipeline()
+		// Rollback: safely delete keys using Lua script (use Eval directly to avoid cache issues)
+		luaReleaseScript := `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+	return redis.call("del", KEYS[1])
+else
+	return 0
+end
+`
 		for _, key := range lockedKeys {
-			// ใช้ Lua Script ตรวจสอบก่อนลบ เพื่อไม่ให้ไปลบมั่วซั่วโดนคีย์คนอื่น
-			var luaRelease = redis.NewScript(`
-				if redis.call("get",KEYS[1]) == ARGV[1] then
-					return redis.call("del",KEYS[1])
-				else
-					return 0
-				end
-			`)
-			luaRelease.Run(ctx, delPipe, []string{key}, userID)
+			// Use Eval directly instead of Script.Run() in pipeline
+			_, _ = r.redis.Eval(ctx, luaReleaseScript, []string{key}, userID).Result()
 		}
-		_, _ = delPipe.Exec(ctx)
 		return false, nil // ปฏิเสธคำขอนี้
 	}
 
@@ -69,21 +68,42 @@ func (r *Repository) AcquireMultipleLocks(ctx context.Context, showtimeID string
 
 // ReleaseMultipleLocks ใช้เมื่อผู้ใช้กด Cancel เพื่อปลดล็อกที่นั่งอย่างปลอดภัย
 func (r *Repository) ReleaseMultipleLocks(ctx context.Context, showtimeID string, seats []string, userID string) error {
-	pipe := r.redis.Pipeline()
+	_, err := r.releaseMultipleLocks(ctx, showtimeID, seats, userID)
+	return err
+}
 
-	var luaRelease = redis.NewScript(`
-		if redis.call("get",KEYS[1]) == ARGV[1] then
-			return redis.call("del",KEYS[1])
-		else
-			return 0
-		end
-	`)
+func (r *Repository) ReleaseMultipleLocksWithCount(ctx context.Context, showtimeID string, seats []string, userID string) (int64, error) {
+	return r.releaseMultipleLocks(ctx, showtimeID, seats, userID)
+}
 
+func (r *Repository) releaseMultipleLocks(ctx context.Context, showtimeID string, seats []string, userID string) (int64, error) {
+	// Lua script to safely delete only if key is owned by this user
+	luaReleaseScript := `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+	return redis.call("del", KEYS[1])
+else
+	return 0
+end
+`
+
+	var released int64
+
+	// Execute each lock release directly (not in pipeline to avoid NOSCRIPT issues)
 	for _, seatNo := range seats {
 		lockKey := fmt.Sprintf("lock:showtime:%s:seat:%s", showtimeID, seatNo)
-		luaRelease.Run(ctx, pipe, []string{lockKey}, userID)
+
+		// Use Eval directly instead of Script.Run() to avoid EVALSHA cache issues
+		result, err := r.redis.Eval(ctx, luaReleaseScript, []string{lockKey}, userID).Result()
+		if err != nil && err != redis.Nil {
+			// Log but don't fail the entire operation - this seat's lock might have already expired
+			fmt.Printf("[REDIS] Error releasing lock for seat %s: %v\n", seatNo, err)
+			continue
+		}
+
+		if n, ok := result.(int64); ok && n > 0 {
+			released += n
+		}
 	}
 
-	_, err := pipe.Exec(ctx)
-	return err
+	return released, nil
 }

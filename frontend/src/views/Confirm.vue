@@ -14,7 +14,7 @@ let timerInterval = null
 // ดึงข้อมูลเก้าอี้ที่เลือกมาจาก Pinia Store ส่วนกลาง
 const selectedSeats = computed(() => authStore.selectedSeats)
 
-// 1. ฟังก์ชันคำนวณและอัปเดตเวลานับถอยหลังทุกๆ 1 วินาที (Senior UI Practice)
+// 1. ฟังก์ชันคำนวณและอัปเดตเวลานับถอยหลังทุกๆ 1 วินาที
 const startCountdown = () => {
   if (!authStore.lockedUntil) {
     // ป้องกันกรณีผู้ใช้แอบพิมพ์ URL เข้าหน้านี้ตรงๆ โดยไม่มีข้อมูลการจอง

@@ -8,7 +8,7 @@ const apiClient = axios.create({
   }
 })
 
-// 2. 🛡️ Senior Practice: แปะ Google Token เข้าไปใน Header อัตโนมัติก่อนส่งคำขอออกไป
+// 2. แปะ Google Token เข้าไปใน Header อัตโนมัติก่อนส่งคำขอออกไป
 apiClient.interceptors.request.use((config) => {
   // ดึง Token ที่ได้จาก Google Sign-In ซึ่งเราจะเก็บไว้ใน localStorage ของเบราว์เซอร์
   const token = localStorage.getItem('google_id_token')

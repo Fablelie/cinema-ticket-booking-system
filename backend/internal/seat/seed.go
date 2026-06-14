@@ -19,7 +19,7 @@ func SeedDefaultShowtime(db *mongo.Database, defaultID string) {
 
 	collection := db.Collection("showtimes")
 
-	// 1. 🛡️ Senior Practice: สร้าง Unique Index ป้องกันข้อมูลรอบฉายซ้ำซ้อนในระดับฐานข้อมูล
+	// 1. สร้าง Unique Index
 	_, _ = collection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
@@ -40,7 +40,7 @@ func SeedDefaultShowtime(db *mongo.Database, defaultID string) {
 		return
 	}
 
-	// 4. วงลูปสร้างรายชื่อเก้าอี้ 2 แถว แถวละ 5 ตัวตามข้อตกลง Workflow
+	// 4. วงลูปสร้างรายชื่อเก้าอี้ 2 แถว แถวละ 5 ตัว A1 - B5
 	var seats []Seat
 	rows := []string{"A", "B"}
 

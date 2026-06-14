@@ -46,7 +46,7 @@ func (r *Repository) AcquireMultipleLocks(ctx context.Context, showtimeID string
 		}
 	}
 
-	// 3. 💥 หัวใจของ Senior: ถ้ามีตัวใดตัวหนึ่งล้มเหลว ให้Rollback สั่งลบคีย์ที่แอบสร้างไว้ทันที!
+	// 3. ถ้ามีตัวใดตัวหนึ่งล้มเหลว ให้Rollback สั่งลบคีย์ที่แอบสร้างไว้ทันที!
 	if !allSuccess {
 		// Rollback: safely delete keys using Lua script (use Eval directly to avoid cache issues)
 		luaReleaseScript := `

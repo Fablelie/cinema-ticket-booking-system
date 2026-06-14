@@ -15,6 +15,10 @@ const localSelected = ref([]) // 🔵 Local State สำหรับเก็บ
 const isLoading = ref(true)
 const errorMessage = ref('')
 
+const isHoldingActiveLock = ref(false)
+const timeLeftStr = ref('')
+let localTimerInterval = null
+
 // แยกกลุ่มเก้าอี้เป็น แถว A และ แถว B เพื่อให้วนลูป Render ง่ายขึ้น
 const rowA = computed(() => seats.value.filter(s => s.seat_no.startsWith('A')))
 const rowB = computed(() => seats.value.filter(s => s.seat_no.startsWith('B')))
@@ -33,9 +37,43 @@ const fetchInitialSeatMap = async () => {
   }
 }
 
+const startLocalTime = () => {
+  if (localTimerInterval) clearInterval(localTimerInterval)
+  if (!authStore.lockedUntil) {
+    isHoldingActiveLock.value = false
+    return
+  }
+
+  const targetTime = new Date(authStore.lockedUntil).getTime()
+
+  localTimerInterval = setInterval(() => {
+    const now = new Date().getTime()
+    const difference = targetTime - now
+
+    if (difference <= 0) {
+      // เมื่อครบกำหนด 5 นาที หลุดจอง! ดีดหน้าจอของเขากลับมาอยู่ในสถานะปกติ
+      clearInterval(localTimerInterval)
+      isHoldingActiveLock.value = false
+      authStore.clearHoldingSeats() // ล้างค่าใน LocalStorage
+      localSelected.value = []      // ล้างปุ่มสีฟ้า
+      fetchInitialSeatMap()         // โหลดผังที่นั่งสีแดงล่าสุดกลับมาแสดงผล
+      return
+    }
+
+    isHoldingActiveLock.value = true
+    
+    // แปลงวินาทีโชว์ข้อความแจ้งเตือนด้านล่าง
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000)
+    timeLeftStr.value = `${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`
+  }, 1000)
+}
+
 // 2. ฟังก์ชันจัดการเมื่อเราคลิกเลือกเก้าอี้ (เปลี่ยนสถานะ Local เป็น สีฟ้า)
 const toggleSeatSelection = (seatNo, status) => {
-  // 🛡️ เช็กก่อน: กดได้เฉพาะเก้าอี้ที่เป็น AVAILABLE (สีแดง) เท่านั้น
+  if (isHoldingActiveLock.value) return
+
+  // กดได้เฉพาะเก้าอี้ที่เป็น AVAILABLE (สีแดง) เท่านั้น
   if (status !== 'AVAILABLE') return
 
   if (localSelected.value.includes(seatNo)) {
@@ -66,16 +104,22 @@ const getSeatClass = (seat) => {
 const handleNextStep = async () => {
   if (localSelected.value.length === 0) return
 
+  if (isHoldingActiveLock.value) {
+    router.push('/confirm')
+    return
+  }
+
   try {
     errorMessage.value = ''
     // ยิงคำขอสร้าง Distributed Lock ไปยังหลังบ้าน Go
     const response = await bookingService.reserveSeats(authStore.defaultShowtimeId, localSelected.value)
     
     // บันทึกตั๋วที่เราล็อกสำเร็จและเวลาหมดอายุลงสโตร์ Pinia เพื่อแชร์ไปใช้หน้าถัดไป
-    authStore.selectedSeats = localSelected.value
-    authStore.lockedUntil = response.data.locked_until
+    authStore.saveHoldingSeats(localSelected.value, response.data.locked_until)
+    // authStore.selectedSeats = localSelected.value
+    // authStore.lockedUntil = response.data.locked_until
 
-    // 🚀 ล็อกสำเร็จ ย้ายตัวเข้าสู่หน้า p_confirm ทันทีตาม Workflow
+    // ล็อกสำเร็จ ย้ายตัวเข้าสู่หน้า p_confirm
     router.push('/confirm')
   } catch (error) {
     console.error('Lock fail error:', error)
@@ -90,47 +134,110 @@ const handleNextStep = async () => {
   }
 }
 
-// 5. 📡 ดักฟังช่องสัญญาณ WebSocket เพื่อเปลี่ยนสีปุ่มเก้าอี้เรียลไทม์เมื่อคนอื่นทำรายการ
-onMounted(() => {
-  fetchInitialSeatMap() // ดึงข้อมูลรอบแรก
-  connect() // เปิดท่อ WebSocket
+const startLocalTimer = () => {
+  // หากมีนาฬิกาเรือนเก่ารันค้างอยู่ ให้ทุบทิ้งก่อนเพื่อไม่ให้เวลาวิ่งทับกัน
+  if (localTimerInterval) clearInterval(localTimerInterval)
+  
+  if (!authStore.lockedUntil) {
+    isHoldingActiveLock.value = false
+    return
+  }
 
-  // ติดตามการแจ้งเตือนจาก WebSocket ผูกตัวแปรเฝ้าดูความเคลื่อนไหว (Watcher เสมือน)
-  // ทุกครั้งที่มี Event พ่นออกมาจาก RabbitMQ ผ่านหลังบ้าน ตัวแปรนี้จะอัปเดตและสั่งรีเฟรชสีบนจอทันที
+  // แปลงเวลาหมดอายุจากหลังบ้าน Go ให้เป็นมิลลิวินาทีสำหรับเปรียบเทียบ
+  const targetTime = new Date(authStore.lockedUntil).getTime()
+
+  localTimerInterval = setInterval(() => {
+    const now = new Date().getTime()
+    const difference = targetTime - now
+
+    // ⏳ กรณีครบกำหนดเวลา 5 นาทีแล้ว (Timeout)
+    if (difference <= 0) {
+      clearInterval(localTimerInterval)
+      isHoldingActiveLock.value = false
+      authStore.clearHoldingSeats() // ล้างค่าความจำในเครื่อง
+      localSelected.value = []      // ล้างปุ่มสีฟ้าออก
+      fetchInitialSeatMap()         // ดึงผังที่นั่งสีแดงว่างล่าสุดกลับขึ้นจออัตโนมัติ ทวงคืนความปกติ ✨
+      return
+    }
+
+    // หากเวลายังเหลืออยู่ ให้เปิดสวิตช์โหมด "ตรึงหน้าจอห้ามเมาส์คลิก" ค้างไว้
+    isHoldingActiveLock.value = true
+    
+    // คำนวณตัดแบ่งนาทีและวินาทีออกโชว์บนตัวป้าย
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000)
+    
+    // จัดรูปแบบให้เป็นเลข 2 หลักเสมอ เช่น 04:09
+    const mStr = minutes < 10 ? '0' + minutes : minutes
+    const sStr = seconds < 10 ? '0' + seconds : seconds
+
+    timeLeftStr.value = `${mStr}:${sStr}`
+  }, 1000)
+}
+
+// 5. 📡 ดักฟังช่องสัญญาณ WebSocket เพื่อเปลี่ยนสีปุ่มเก้าอี้เรียลไทม์เมื่อคนอื่นทำรายการ
+onMounted(async () => {
+  // 1. บังคับยิง API ไปดึงผังเก้าอี้หลักจาก MongoDB ขึ้นจอให้เสร็จก่อนเป็นอันดับแรกสุด
+  await fetchInitialSeatMap() 
+  connect() // เปิดท่อ WebSocket รับสัญญาณเรียลไทม์
+
+  // 2. หลังจากผังที่นั่งหลักขึ้นจอครบถ้วนแล้ว ค่อยตรวจสอบประวัติตั๋วเก่าค้างเครื่อง
+  if (authStore.selectedSeats && authStore.selectedSeats.length > 0 && authStore.lockedUntil) {
+    const remain = new Date(authStore.lockedUntil).getTime() - new Date().getTime()
+    
+    if (remain > 0) {
+      console.log('[SEATMAP] Re-applying active lock for seats:', authStore.selectedSeats)
+      // ผูกค่าเก้าอี้เก่า และเปิดสวิตช์สั่งตรึงปุ่มห้ามเมาส์คลิกตามโฟลว์ใหม่ทันที
+      localSelected.value = [...authStore.selectedSeats]
+      isHoldingActiveLock.value = true
+      startLocalTimer() // เปิดระบบนาฬิกานับถอยหลังภายในหน้านี้
+    } else {
+      // หากตั๋วใบนั้นหมดอายุ 5 นาทีไปแล้ว สั่งล้างสิทธิ์ทิ้ง
+      authStore.clearHoldingSeats()
+      localSelected.value = []
+    }
+  }
+
+  // 3. ติดตามการแจ้งเตือนจาก WebSocket (โค้ดดักจับสีเก้าอี้ชุดเดิมทำงานต่อ)
   const wsCheckInterval = setInterval(() => {
     if (latestEvent.value) {
       const ev = latestEvent.value
       
-      // อัปเดตข้อมูลเก้าอี้ในอาเรย์บนจอตามเหตุการณ์ที่ได้รับ
       seats.value = seats.value.map(s => {
         if (ev.seats.includes(s.seat_no)) {
-          // หากคนอื่นขอล็อกเก้าอี้ตัวนี้ เปลี่ยนเป็น LOCKED (ส้ม)
           if (ev.event === 'SEATS_LOCKED') {
             return { ...s, status: 'LOCKED' }
           }
-          // หากหมดเวลาล็อก หรือคนอื่นกดยกเลิก ปรับกลับเป็น AVAILABLE (แดง)
           if (ev.event === 'SEATS_RELEASED') {
-            // เช็กเผื่อป้องกันไม่ให้ไปล้างปุ่มสีฟ้าของตัวเราเอง
-            if (localSelected.value.includes(s.seat_no)) {
-              localSelected.value = localSelected.value.filter(x => x !== s.seat_no)
+            if (authStore.selectedSeats.some(x => ev.seats.includes(x))) {
+              clearInterval(localTimerInterval)
+              isHoldingActiveLock.value = false
+              authStore.clearHoldingSeats()
+              localSelected.value = []
             }
             return { ...s, status: 'AVAILABLE' }
           }
-          // หากคนอื่นยืนยันจ่ายเงินสำเร็จ ปรับเป็น BOOKED (เทา)
           if (ev.event === 'BOOKING_SUCCESS') {
             return { ...s, status: 'BOOKED' }
+          }
+          if (ev.event === 'SYSTEM_RESET_BY_ADMIN') {
+            if (localTimerInterval) clearInterval(localTimerInterval)
+            isHoldingActiveLock.value = false
+            authStore.clearHoldingSeats()
+            localSelected.value = []
+            return { ...s, status: 'AVAILABLE' }
           }
         }
         return s
       })
-      latestEvent.value = null // เคลียร์ข้อความออกเพื่อรอรับข่าวรอบถัดไป
+      latestEvent.value = null 
     }
   }, 100)
 
-  // เคลียร์ Interval ทิ้งตอนปิดหน้าจอ
   onUnmounted(() => {
     clearInterval(wsCheckInterval)
-    disconnect() // ปิดสาย WebSocket
+    if (localTimerInterval) clearInterval(localTimerInterval)
+    disconnect() 
   })
 })
 
@@ -197,16 +304,20 @@ const handleLogout = () => {
         </div>
 
         <div class="summary-box">
-          <p class="summary-text">🎫 เก้าอี้ที่คุณเลือก: 
+          <p class="summary-text">
+            <span v-if="isHoldingActiveLock" class="text-warning-msg">⏳ ที่นั่งที่คุณกำลังดำเนินการล็อกค้างไว้ (เหลือเวลาล็อก {{ timeLeftStr }}):</span>
+            <span v-else>🎫 เก้าอี้ที่คุณเลือก:</span>
+            
             <span v-if="localSelected.length > 0" class="highlight-seats">{{ localSelected.join(', ') }}</span>
             <span v-else class="empty-seats">ยังไม่ได้เลือกที่นั่ง</span>
           </p>
           <button 
             :disabled="localSelected.length === 0" 
             @click="handleNextStep" 
-            class="btn-next"
+            :class="['btn-next', { 'btn-resume': isHoldingActiveLock }]"
           >
-            Next (เข้าสู่หน้ายืนยัน) ->
+            <span v-if="isHoldingActiveLock">🔄 กลับไปดำเนินรายการต่อ</span>
+            <span v-else>Next (เข้าสู่หน้ายืนยัน) -></span>
           </button>
         </div>
       </div>
@@ -310,38 +421,25 @@ const handleLogout = () => {
 
 .seat-btn:hover:not(.seat-locked):not(.seat-booked) { transform: scale(1.08); }
 
+.disabled-click { cursor: not-allowed !important; opacity: 0.85; }
+
 .color-badges { display: flex; justify-content: center; gap: 12px; font-size: 11px; margin-bottom: 25px; }
 .badge { padding: 3px 8px; border-radius: 4px; }
 .badge-av { background-color: #dc2626; }
 .badge-sel { background-color: #06b6d4; }
 .badge-lock { background-color: #f97316; }
 .badge-book { background-color: #4b5563; }
-
-.summary-box {
-  background-color: #0f172a;
-  padding: 15px 20px;
-  border-radius: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.summary-text { font-size: 14px; color: #cbd5e1; margin: 0; }
+.summary-box { background-color: #0f172a; padding: 15px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+.summary-text { font-size: 14px; color: #cbd5e1; margin: 0; line-height: 1.4; }
 .highlight-seats { color: #06b6d4; font-weight: 700; font-size: 16px; margin-left: 5px; }
 .empty-seats { color: #64748b; font-style: italic; }
-
-.btn-next {
-  background-color: #10b981;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
+.btn-next { background-color: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
 .btn-next:disabled { background-color: #334155; color: #64748b; cursor: not-allowed; }
-.btn-next:hover:not(:disabled) { background-color: #059669; }
+.btn-next:hover:not(:disabled):not(.btn-resume) { background-color: #059669; }
+
+.btn-resume { background-color: #f97316 !important; color: white !important; }
+.btn-resume:hover { background-color: #ea580c !important; box-shadow: 0 0 12px rgba(249, 115, 22, 0.5); }
+.text-warning-msg { color: #fdba74; font-weight: 700; }
 
 .loading-text, .error-text { text-align: center; padding: 20px; color: #94a3b8; }
 .error-text { color: #f87171; }

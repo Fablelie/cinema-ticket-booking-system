@@ -35,8 +35,7 @@ const startCountdown = () => {
       alert('หมดเวลาทำรายการจองตั๋ว ระบบจะนำคุณกลับไปเลือกที่นั่งใหม่อีกครั้ง')
       
       // ล้างข้อมูลใน Store แล้วเตะกลับหน้าผังที่นั่ง (หลังบ้านจะคอยเคลียร์สเตตัสใน Mongo อยู่แล้ว)
-      authStore.selectedSeats = []
-      authStore.lockedUntil = null
+      authStore.clearHoldingSeats()
       router.push('/seats')
       return
     }
@@ -60,8 +59,7 @@ const handleConfirm = async () => {
     alert('ยืนยันการจองตั๋วและชำระเงินสำเร็จเรียบร้อยแล้ว!')
     
     // เคลียร์ค่าเก้าอี้ในสโตร์ และพากลับไปหน้าผังที่นั่งเพื่อดูผลลัพธ์สีเทา
-    authStore.selectedSeats = []
-    authStore.lockedUntil = null
+    authStore.clearHoldingSeats()
     router.push('/seats')
   } catch (error) {
     console.error('Confirm error:', error)
@@ -76,8 +74,7 @@ const handleCancel = async () => {
     await bookingService.cancelBooking(authStore.defaultShowtimeId, selectedSeats.value)
     
     // เคลียร์ค่าเก้าอี้ในสโตร์ และพากลับไปหน้าผังที่นั่ง
-    authStore.selectedSeats = []
-    authStore.lockedUntil = null
+    authStore.clearHoldingSeats()
     router.push('/seats')
   } catch (error) {
     console.error('Cancel error:', error)

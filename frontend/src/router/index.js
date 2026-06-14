@@ -41,7 +41,7 @@ const router = createRouter({
   routes
 })
 
-// 2. 🛡️ Senior Practice: นำระบบด่านตรวจสิทธิ์มาสกัดกั้นก่อนสลับเปลี่ยนหน้าจอ (Navigation Guard)
+// 2. นำระบบด่านตรวจสิทธิ์มาสกัดกั้นก่อนสลับเปลี่ยนหน้าจอ (Navigation Guard)
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore() // ดึงค่า Token และสิทธิ์แบบ Dynamic จากคลังความปลอดภัย
   const token = authStore.token

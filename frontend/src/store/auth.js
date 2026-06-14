@@ -6,7 +6,6 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('google_id_token') || null)
   const email = ref(localStorage.getItem('user_email') || '')
   const userId = ref(localStorage.getItem('user_id') || '')
-  
   const userRole = ref(localStorage.getItem('user_role') || 'USER')
 
   const selectedSeats = ref(JSON.parse(localStorage.getItem('held_seats')) || [])
@@ -14,7 +13,6 @@ export const useAuthStore = defineStore('auth', () => {
   const defaultShowtimeId = ref(import.meta.env.VITE_DEFAULT_SHOWTIME_ID)
 
   const isAuthenticated = computed(() => !!token.value)
-  
   const isAdmin = computed(() => userRole.value === 'ADMIN')
 
   const fetchUserProfile = async () => {

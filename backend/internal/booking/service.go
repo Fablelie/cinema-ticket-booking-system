@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/fablelie/cinema-ticket-booking-system/config"
@@ -17,6 +18,7 @@ type Service struct {
 	seatRepo    *seat.Repository
 	mqCh        *amqp091.Channel
 	cfg         *config.Config
+	mu          sync.Mutex
 }
 
 func NewService(bookingRepo *Repository, seatRepo *seat.Repository, ch *amqp091.Channel, cfg *config.Config) *Service {
@@ -39,9 +41,61 @@ func (s *Service) ReserveSeats(ctx context.Context, userID string, req ReserveSe
 
 	success, err := s.bookingRepo.AcquireMultipleLocks(ctx, req.ShowtimeID, req.Seats, userID, ttl)
 	if err != nil {
+		eventPayload, err := json.Marshal(map[string]interface{}{
+			"event":       "SYSTEM_ERROR",
+			"showtime_id": req.ShowtimeID,
+			"seats":       req.Seats,
+			"user_id":     userID,
+			"error_msg":   "Redis connection failure: " + err.Error(),
+		})
+
+		s.mu.Lock()
+		if err := s.mqCh.PublishWithContext(context.Background(),
+			"",
+			"booking_events",
+			false, false,
+			amqp091.Publishing{
+				ContentType: "application/json",
+				Body:        eventPayload,
+			},
+		); err != nil {
+			log.Printf("[RabbitMQ] Failed to publish SYSTEM_ERROR event: %v", err)
+		} else {
+			log.Printf("[RabbitMQ] Successfully published SYSTEM_ERROR event")
+		}
+		s.mu.Unlock()
+
 		return nil, err
 	}
 	if !success {
+		eventPayload, err := json.Marshal(map[string]interface{}{
+			"event":       "SYSTEM_LOCK_FAIL",
+			"showtime_id": req.ShowtimeID,
+			"seats":       req.Seats,
+			"user_id":     userID,
+			"error_msg":   "Concurrency conflict: One or more seats are already locked by another user",
+		})
+
+		if err != nil {
+			log.Printf("[BOOKING SERVICE] SYSTEM_LOCK_FAIL json marshal err: %v", err)
+		}
+
+		s.mu.Lock()
+		if err := s.mqCh.PublishWithContext(context.Background(),
+			"",
+			"booking_events",
+			false, false,
+			amqp091.Publishing{
+				ContentType: "application/json",
+				Body:        eventPayload,
+			},
+		); err != nil {
+			log.Printf("[RabbitMQ] Failed to publish SYSTEM_LOCK_FAIL event: %v", err)
+		} else {
+			log.Printf("[RabbitMQ] Successfully published SYSTEM_LOCK_FAIL event")
+		}
+		s.mu.Unlock()
+
 		return nil, errors.New("one or more selected seats are already locked or booked")
 	}
 
@@ -53,6 +107,18 @@ func (s *Service) ReserveSeats(ctx context.Context, userID string, req ReserveSe
 				_ = s.seatRepo.UpdateSeatStatus(ctx, req.ShowtimeID, rollbackSeatNo, seat.StatusAvailable, "")
 			}
 			_ = s.bookingRepo.ReleaseMultipleLocks(ctx, req.ShowtimeID, req.Seats, userID)
+			eventPayload, _ := json.Marshal(map[string]interface{}{
+				"event":       "SYSTEM_LOCK_FAIL",
+				"showtime_id": req.ShowtimeID,
+				"seats":       req.Seats,
+				"user_id":     userID,
+				"error_msg":   "Database conflict or incomplete booking: " + err.Error(),
+			})
+
+			s.mu.Lock()
+			_ = s.mqCh.PublishWithContext(context.Background(), "", "booking_events", false, false,
+				amqp091.Publishing{ContentType: "application/json", Body: eventPayload})
+			s.mu.Unlock()
 			if errors.Is(err, seat.ErrSeatStateConflict) {
 				return nil, errors.New("one or more selected seats are no longer available")
 			}
@@ -69,10 +135,11 @@ func (s *Service) ReserveSeats(ctx context.Context, userID string, req ReserveSe
 		"locked_until": lockedUntil,
 	})
 	if err != nil {
-		log.Printf("[BOOKING SERVICE] json marshal err: %v", err)
+		log.Printf("[BOOKING SERVICE] SEATS_LOCKED json marshal err: %v", err)
 	}
 
 	log.Printf("[BOOKING SERVICE] Publishing SEATS_LOCKED event for user %s, seats: %v", userID, req.Seats)
+	s.mu.Lock()
 	if err := s.mqCh.PublishWithContext(context.Background(),
 		"",
 		"booking_events",
@@ -86,6 +153,7 @@ func (s *Service) ReserveSeats(ctx context.Context, userID string, req ReserveSe
 	} else {
 		log.Printf("[RabbitMQ] Successfully published SEATS_LOCKED event")
 	}
+	s.mu.Unlock()
 
 	return &BookingResponse{
 		Seats:       req.Seats,

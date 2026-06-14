@@ -86,6 +86,8 @@ const getEventBadgeClass = (event) => {
     case 'SEATS_LOCKED': return 'badge-warning'          // สีส้ม (ติดล็อก)
     case 'SEATS_RELEASED': return 'badge-danger'         // สีแดง (หลุดล็อก/ยกเลิก)
     case 'SYSTEM_RESET_BY_ADMIN': return 'badge-system'  // สีม่วง (แอดมินล้างกระดาน)
+    case 'SYSTEM_LOCK_FAIL': return 'badge-lock-fail'    // ป้ายแจ้งเตือนแย่งตั๋วแพ้
+    case 'SYSTEM_ERROR': return 'badge-error'            // ป้ายระบบขัดข้อง
     default: return 'badge-info'
   }
 }
@@ -130,6 +132,8 @@ onMounted(() => {
             <option value="SEATS_LOCKED">🟡 SEATS_LOCKED (ติดล็อกค้างไว้)</option>
             <option value="SEATS_RELEASED">🔴 SEATS_RELEASED (หลุดจอง/ยกเลิก)</option>
             <option value="SYSTEM_RESET_BY_ADMIN">🟣 SYSTEM_RESET (แอดมินรีเซ็ต)</option>
+            <option value="SYSTEM_LOCK_FAIL">🛑 SYSTEM_LOCK_FAIL (lock ที่นั่งไม่สำเร็จ)</option>
+            <option value="SYSTEM_ERROR">🔥 SYSTEM_ERROR (ระบบขัดข้อง)</option>
           </select>
         </div>
 
@@ -318,6 +322,8 @@ onMounted(() => {
 .badge-warning { background-color: #f97316; color: white; }
 .badge-danger { background-color: #ef4444; color: white; }
 .badge-system { background-color: #8b5cf6; color: white; }
+.badge-lock-fail { background-color: #f43f5e; color: white; border: 1px solid #e11d48; }
+.badge-error { background-color: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; animation: pulse 2s infinite; }
 
 .status-box { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
 .error-text { color: #f87171; font-weight: 600; }

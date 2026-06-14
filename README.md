@@ -132,7 +132,7 @@ graph TD
 
 ---
 
-## 📣 5. การทำงานของ Message Queue (RabbitMQ Use Case)
+## 📣 5. Message Queue (RabbitMQ Use Case)
 
 ระบบนี้ได้แยกท่อการส่งข้อมูลออกจากขารับ เพื่อป้องกันปัญหาท่อแย่งข้อมูลชนกัน (**Channel Isolation Strategy**) โดยมี Use Case การนำไปใช้งานจริงดังนี้:
 
@@ -141,7 +141,7 @@ graph TD
 
 ---
 
-## 🏃‍♂️ 6. วิธีรันระบบ (How to Run)
+## 🏃‍♂️ 6. How to Run
 
 option 1: เปิด terminal ที่ path ../cinema-ticket-booking-system แล้วสั่ง **docker-compose up --build**
 option 2(สำหรับ windows): double-click **start-app.bat**
@@ -161,7 +161,7 @@ double-click start-app.bat
 
 ---
 
-## 🧪 7. คู่มือการทดสอบระบบผ่านโปรแกรม Postman (Postman Collection Testing)
+## 🧪 7. Postman Collection Testing
 
 คุณสามารถทดสอบยิง API ผ่าน Postman ด้วยขั้นตอนดังนี้:
 

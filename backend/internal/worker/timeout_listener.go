@@ -81,9 +81,9 @@ func (t *TimeoutListener) handleExpiredLock(ctx context.Context, key string) {
 		return
 	}
 
-	// 2. 📣 ส่ง Event "SEATS_RELEASED" บอก RabbitMQ เพื่อให้ฝั่ง WebSocket สั่งเปลี่ยนสีจอคนอื่นเป็นสีแดง
+	// 2. 📣 ส่ง Event "BOOKING_TIMEOUT" บอก RabbitMQ เพื่อให้ฝั่ง WebSocket สั่งเปลี่ยนสีจอคนอื่นเป็นสีแดง
 	eventPayload, _ := json.Marshal(map[string]interface{}{
-		"event":       "SEATS_RELEASED",
+		"event":       "BOOKING_TIMEOUT",
 		"showtime_id": showtimeID,
 		"seats":       []string{seatNo},
 	})
@@ -98,7 +98,7 @@ func (t *TimeoutListener) handleExpiredLock(ctx context.Context, key string) {
 			Body:        eventPayload,
 		},
 	); err != nil {
-		log.Printf("[TIMEOUT WORKER] Failed to publish SEATS_RELEASED event: %v", err)
+		log.Printf("[TIMEOUT WORKER] Failed to publish BOOKING_TIMEOUT event: %v", err)
 	}
 
 	log.Printf("[TIMEOUT WORKER] Successfully released seat %s for showtime %s due to timeout", seatNo, showtimeID)

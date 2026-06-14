@@ -158,6 +158,8 @@ func main() {
 		securedBooking := apiV1.Group("/bookings")
 		securedBooking.Use(auth.GoogleAuthMiddleware(cfg))
 		{
+			securedBooking.GET("/me", auth.GetProfileHandler(cfg))
+
 			securedBooking.POST("/reserve", bookingHandler.ReserveHandler)
 			securedBooking.POST("/confirm", bookingHandler.ConfirmHandler)
 			securedBooking.POST("/cancel", bookingHandler.CancelHandler)

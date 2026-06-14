@@ -104,3 +104,32 @@ func AdminOnlyMiddleware(cfg *config.Config) gin.HandlerFunc {
 		c.Next() // ผ่านฉลุย เข้าไปดึงข้อมูลแอดมินได้
 	}
 }
+
+func GetProfileHandler(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		emailValue, exists := c.Get("user_email")
+		userIDValue, _ := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: session data missing"})
+			return
+		}
+
+		email := strings.ToLower(emailValue.(string))
+		userID := userIDValue.(string)
+
+		role := "USER"
+		adminList := strings.Split(cfg.AdminEmails, ",")
+		for _, adminEmail := range adminList {
+			if strings.ToLower(strings.TrimSpace(adminEmail)) == email {
+				role = "ADMIN"
+				break
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"user_id":    userID,
+			"user_email": email,
+			"role":       role,
+		})
+	}
+}

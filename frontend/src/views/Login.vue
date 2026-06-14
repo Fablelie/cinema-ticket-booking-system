@@ -7,8 +7,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 // ฟังก์ชันทำงานเมื่อผู้ใช้เข้าสู่ระบบด้วย Google สำเร็จ (ได้รับ Token กลับมาจากกูเกิล)
-const handleLoginSuccess = (response) => {
-  const idToken = response.credential // นี่คือ ID Token (JWT) ตัวที่จะยิงไปหลังบ้าน Go
+const handleLoginSuccess = async (response) => {
+  const idToken = response.credential
   
   if (!idToken) return
 
@@ -24,22 +24,19 @@ const handleLoginSuccess = (response) => {
     )
     const decoded = JSON.parse(jsonPayload)
     const userEmail = decoded.email
+    const googleUserId = decoded.sub
 
     // 💾 บันทึก Token และ Email ลงสโตร์ Pinia และ LocalStorage ผ่านฟังก์ชันกลาง
-    authStore.setLoginSession(idToken, userEmail)
+    authStore.setLoginSession(idToken, userEmail, googleUserId)
 
-    console.log('[AUTH] Login successful! User email:', userEmail)
+    const serverRole = await authStore.fetchUserProfile()
+    console.log('[AUTH] Role verified by backend successfully:', serverRole)
 
-    // 🚀 ย้ายหน้าจอตาม Workflow: 
-    // หากเป็นแอดมิน ให้พาไปหน้า Dashboard แต่ถ้าเป็นผู้ใช้ทั่วไป พาไปหน้าเลือกเก้าอี้ (p_seat)
-    if (authStore.isAdmin) {
-      router.push('/admin')
-    } else {
-      router.push('/seats')
-    }
+    router.push('/seats')
   } catch (error) {
     console.error('[AUTH ERROR] Failed to parse Google token:', error)
     alert('เกิดข้อผิดพลาดในการตรวจสอบข้อมูล บัญชีผู้ใช้ไม่ถูกต้อง')
+    authStore.logout()
   }
 }
 

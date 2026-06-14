@@ -152,7 +152,7 @@ onMounted(() => {
 
         <!-- โซนปุ่มดำเนินการคัดกรอง และปุ่ม Reset สำหรับ Admin -->
         <div class="filter-actions">
-          <!-- <button @click="fetchDashboardData" class="btn-search">🔍 ค้นหา (Filter)</button> -->
+          <button @click="fetchDashboardData" class="btn-search">🔍 ค้นหา (Filter)</button>
           <button @click="clearFilters" class="btn-clear">ล้างค่า</button>
           <button @click="handleResetSystem" class="btn-danger-admin">⚡ Reset ผังที่นั่งว่างทั้งหมด</button>
         </div>

@@ -12,7 +12,7 @@ if (-not (Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue)) {
 
 # 2. Shut down existing containers and force clean re-build for Full-Stack app
 Write-Host "🛠️ Rebuilding containers (Docker Compose Up)..." -ForegroundColor Green
-docker compose down -v
+docker compose down
 docker compose up --build
 
 Read-Host -Prompt "Press Enter to close this window"

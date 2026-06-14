@@ -7,7 +7,57 @@
 ## 📊 1. System Architecture Diagram
 
 ระบบนี้ออกแบบตามหลัก **Domain-Driven Layered Architecture (DDD Lite)** และยึดหลัก **Single Responsibility Principle (SRP)** เพื่อให้โค้ดแยกส่วนจากกันอย่างชัดเจน:
+```mermaid
+graph TD
+    %% การตั้งค่าสไตล์โทนสีดาร์กโหมดแมตช์กับโปรเจกต์
+    classDef frontend fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#fff;
+    classDef backend fill:#1e293b,stroke:#334155,stroke-width:2px,color:#fff;
+    classDef database fill:#0f172a,stroke:#334155,stroke-width:2px,color:#cbd5e1;
+    classDef worker fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef mq fill:#d97706,stroke:#b45309,stroke-width:2px,color:#fff;
 
+    %% โครงสร้างเลเยอร์ระบบ
+    subgraph FE [FRONTEND LAYER]
+        VUE[Vue 3 / Vite Application]:::frontend
+    end
+
+    subgraph BE [BACKEND LAYER - Go-Gin Framework]
+        PRE[Presentation Layer<br>• REST Handlers<br>• Gorilla WebSocket Hub]:::backend
+        DOM[Domain / Service Layer<br>• Business Logic<br>• Sync Mutex Queue]:::backend
+        DAL[Data Access Layer<br>• MongoDB Driver<br>• Redis Distributed Lock]:::backend
+        
+        PRE --> DOM --> DAL
+    end
+
+    subgraph INFRA [INFRASTRUCTURE & DATABASES]
+        MONGO[(MongoDB 6.0)]:::database
+        REDIS[(Redis 7.0)]:::database
+        RMQ[[RabbitMQ Message Queue]]:::mq
+    end
+
+    subgraph WORKERS [BACKGROUND WORKERS]
+        T_WORKER[Background Timeout Worker]:::worker
+        A_WORKER[Background Audit Log Consumer]:::worker
+    end
+
+    %% เส้นการเดินข้อมูลหลัก (Data Flow)
+    VUE <-->|REST API & WebSockets<br>Real-time Feed| PRE
+    DAL -->|Primary Write/Read| MONGO
+    DAL -->|Distributed Lock SetNX| REDIS
+    
+    %% เส้นระบบนับเวลาถอยหลังหลุดจอง 5 นาที
+    REDIS -->|Keyspace Expired Event| T_WORKER
+    T_WORKER -->|Update Status: AVAILABLE| MONGO
+    
+    %% เส้นระบบคิวบันทึกประวัติอซิงโครนัส
+    DOM -->|Publish Event| RMQ
+    RMQ -->|Consume Event Message| A_WORKER
+    A_WORKER -->|Async Append Logs| MONGO
+
+    %% สั่งพ่นสีกล่องข้อความ
+    T_WORKER -.->|Broadcast Event Data| A_WORKER
+
+```
 ```text
 [ FRONTEND LAYER (Vue 3) ]
         │  ▲

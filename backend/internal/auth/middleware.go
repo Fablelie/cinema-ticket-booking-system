@@ -30,6 +30,18 @@ func GoogleAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		idToken := parts[1]
 
+		// mock token
+		if strings.HasPrefix(idToken, "mock-user-") {
+			mockEmail := strings.TrimPrefix(idToken, "mock-user-")
+			cleanEmail := strings.ToLower(strings.TrimSpace(mockEmail))
+
+			c.Set("user_id", "mock_uid_"+cleanEmail)
+			c.Set("user_email", cleanEmail)
+
+			c.Next()
+			return
+		}
+
 		// 2. ตรวจสอบความพร้อมของค่าคอนฟิกระบบหลังบ้าน
 		if cfg.GoogleClientID == "" || cfg.GoogleClientID == "your_google_client_id" {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "server configuration error: google client id is not properly configured"})

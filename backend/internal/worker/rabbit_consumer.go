@@ -17,6 +17,7 @@ type AuditLog struct {
 	ShowtimeID string    `bson:"showtime_id" json:"showtime_id"`
 	Seats      []string  `bson:"seats" json:"seats"`
 	UserID     string    `bson:"user_id,omitempty" json:"user_id,omitempty"`
+	ErrorMsg   string    `bson:"error_msg,omitempty" json:"error_msg,omitempty"`
 	Timestamp  time.Time `bson:"timestamp" json:"timestamp"`
 }
 
@@ -85,6 +86,8 @@ func (c *RabbitConsumer) Start(ctx context.Context) {
 				log.Printf("[RABBIT CONSUMER] get user_id : %s |", event)
 				userID, _ := rawData["user_id"].(string)
 
+				errorMsg, _ := rawData["error_msg"].(string)
+
 				log.Printf("[RABBIT CONSUMER] finish get user_id : %s |", event)
 				// แปลงอินเทอร์เฟซของรายชื่อเก้าอี้กลับมาเป็น Array ของ String
 				var seats []string
@@ -126,6 +129,7 @@ func (c *RabbitConsumer) Start(ctx context.Context) {
 					ShowtimeID: showtimeID,
 					Seats:      seats,
 					UserID:     userID,
+					ErrorMsg:   errorMsg,
 					Timestamp:  eventTimestamp, // ใช้เวลาที่เกิดเหตุการณ์จริง มิใช่เวลาบันทึก
 				}
 

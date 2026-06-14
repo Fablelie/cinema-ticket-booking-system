@@ -85,6 +85,7 @@ const getEventBadgeClass = (event) => {
     case 'BOOKING_SUCCESS': return 'badge-success'       // สีเขียว (จองถาวร)
     case 'SEATS_LOCKED': return 'badge-warning'          // สีส้ม (ติดล็อก)
     case 'SEATS_RELEASED': return 'badge-danger'         // สีแดง (หลุดล็อก/ยกเลิก)
+    case 'BOOKING_TIMEOUT': return 'badge-warning'       // timeout
     case 'SYSTEM_RESET_BY_ADMIN': return 'badge-system'  // สีม่วง (แอดมินล้างกระดาน)
     case 'SYSTEM_LOCK_FAIL': return 'badge-lock-fail'    // ป้ายแจ้งเตือนแย่งตั๋วแพ้
     case 'SYSTEM_ERROR': return 'badge-error'            // ป้ายระบบขัดข้อง
@@ -131,6 +132,7 @@ onMounted(() => {
             <option value="BOOKING_SUCCESS">🟢 BOOKING_SUCCESS (จองสำเร็จถาวร)</option>
             <option value="SEATS_LOCKED">🟡 SEATS_LOCKED (ติดล็อกค้างไว้)</option>
             <option value="SEATS_RELEASED">🔴 SEATS_RELEASED (หลุดจอง/ยกเลิก)</option>
+            <option value="BOOKING_TIMEOUT">⏳ BOOKING_TIMEOUT (หมดเวลา/หลุดล็อก)</option>
             <option value="SYSTEM_RESET_BY_ADMIN">🟣 SYSTEM_RESET (แอดมินรีเซ็ต)</option>
             <option value="SYSTEM_LOCK_FAIL">🛑 SYSTEM_LOCK_FAIL (lock ที่นั่งไม่สำเร็จ)</option>
             <option value="SYSTEM_ERROR">🔥 SYSTEM_ERROR (ระบบขัดข้อง)</option>
@@ -170,6 +172,7 @@ onMounted(() => {
               <th>เบอร์ที่นั่ง (Seats)</th>
               <th>รหัสผู้ใช้งาน (User ID)</th>
               <th>รหัสรอบฉาย (Showtime ID)</th>
+              <th>รายละเอียด / หมายเหตุ (Details)</th>
             </tr>
           </thead>
           <tbody>
@@ -183,6 +186,9 @@ onMounted(() => {
               <td class="seat-col">{{ log.seats ? log.seats.join(', ') : '-' }}</td>
               <td class="id-col" :title="log.user_id">{{ log.user_id || 'ระบบอัตโนมัติ/แอดมิน' }}</td>
               <td class="id-col text-muted">{{ log.showtime_id }}</td>
+              <td class="error-msg-col" :class="{ 'text-danger-msg': log.error_msg }">
+                {{ log.error_msg || '-' }}
+              </td>
             </tr>
             <tr v-if="logs.length === 0">
               <td colspan="5" class="empty-row">❌ ไม่พบประวัติ Log กิจกรรมในระบบตามเงื่อนไขตัวกรองที่คุณกำหนด</td>
@@ -316,6 +322,18 @@ onMounted(() => {
 .time-col { color: #38bdf8; font-family: monospace; font-size: 12px; white-space: nowrap; }
 .seat-col { font-weight: 700; color: #06b6d4; font-size: 15px; }
 .id-col { font-family: monospace; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.error-msg-col {
+  max-width: 280px;
+  white-space: normal;
+  word-break: break-word;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.text-danger-msg {
+  color: #fda4af !important; 
+  font-style: italic;
+}
 
 .event-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-block; text-align: center; }
 .badge-success { background-color: #10b981; color: white; }

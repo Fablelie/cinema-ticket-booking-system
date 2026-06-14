@@ -1,4 +1,4 @@
-# 🎬 Cinema Ticket Booking System (Full-Stack)
+# 🎬 Cinema Ticket Booking System
 
 ระบบจำลองการจองตั๋วภาพยนตร์ พัฒนาบนสถาปัตยกรรมแยกส่วนหลังบ้านและหน้าบ้าน (**Decoupled Full-Stack Architecture**) มีระบบจัดการ Concurrency ป้องกันปัญหา Double Booking พร้อมระบบเก็บประวัติกิจกรรมผู้ใช้ (Audit Logs) และหน้าจอแอดมินสำหรับการตรวจสอบ Logs
 
